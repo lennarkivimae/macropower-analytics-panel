@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"io"
 	"net/http"
 	"strconv"
@@ -15,21 +14,7 @@ type Client struct {
 	GrafanaUrl   string
 	Token        string
 	Logger       log.Logger
-}
-
-func (api *Client) getResponseBody(res *http.Response) []byte {
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "Failed to get response body",
-			"error", err,
-		)
-
-		return []byte{}
-	}
-
-	return body
+	Filter       *string
 }
 
 func (api *Client) prepare(method string, endpoint string, payload []byte) (*http.Request, error) {

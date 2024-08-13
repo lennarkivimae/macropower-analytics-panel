@@ -29,6 +29,170 @@ type DashboardUpdateResponse struct {
 	Version   uint64 `json:"version"`
 }
 
+func (api *Client) AddAnalyticsToDashboards() {
+	res, err := api.Get("/api/search")
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "AddAnalyticsToDashboards - Failed to get dashboard data - /api/search",
+			"error", err,
+		)
+
+		return
+	}
+
+	var response []DashboardsResponse
+	err = json.Unmarshal(res, &response)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "AddAnalyticsToDashboards - Failed to parse JSON response",
+			"error", err,
+		)
+
+		return
+	}
+
+	var dashboardsToUpdate []Dashboard
+	for _, dashboardEntry := range response {
+		hasAnalyticsPanel := false
+		rawDashboardData := api.GetDashboard(dashboardEntry.Uid)
+		dashboardData := getTypedDashboardData(rawDashboardData)
+		panels := getTypedPanelsData(dashboardData)
+
+		largestPanelId := 0
+		largestPanelId, hasAnalyticsPanel = checkAnalyticsPanelExistence(panels, largestPanelId, hasAnalyticsPanel)
+
+		title, ok := dashboardData["title"]
+		if !hasAnalyticsPanel && ok {
+			newAnalyticsPanel := createAnalyticsPanelData(largestPanelId+1, api.AnalyticsUrl)
+			panels = append([]interface{}{newAnalyticsPanel}, panels...)
+			dashboardData["panels"] = panels
+			rawDashboardData.Data["dashboard"] = dashboardData
+
+			dashboardsToUpdate = append(dashboardsToUpdate, Dashboard{
+				Uid:   dashboardEntry.Uid,
+				Data:  rawDashboardData.Data,
+				Title: title.(string),
+			})
+		}
+	}
+
+	api.updateDashboards(dashboardsToUpdate)
+}
+
+func (api *Client) updateDashboards(dashboards []Dashboard) {
+	var filteredDashboardName string
+	hasFilter := false
+
+	if api.Filter != nil {
+		filteredDashboardName = *api.Filter
+		hasFilter = true
+	}
+
+	for _, dashboard := range dashboards {
+		api.updateDashboard(dashboard, hasFilter, filteredDashboardName)
+	}
+}
+
+func (api *Client) updateDashboard(dashboard Dashboard, hasFilter bool, filteredDashboardName string) {
+	if hasFilter && dashboard.Title != filteredDashboardName {
+		return
+	}
+
+	dashboard.Data["overwrite"] = true
+	dashboard.Data["message"] = "macropower-analytics-panel - Auto-add analytics panel"
+
+	payload, err := json.Marshal(dashboard.Data)
+	if err != nil {
+		return
+	}
+
+	res, err := api.Post("/api/dashboards/db", payload)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "updateDashboards - Failed to update dashboard",
+			"error", err,
+		)
+
+		return
+	}
+
+	var responseAsStruct DashboardUpdateResponse
+	err = json.Unmarshal(res, &responseAsStruct)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "updateDashboards - Failed to parse update response",
+			"error", err,
+		)
+
+		return
+	}
+
+	if responseAsStruct.Status == "success" {
+		level.Info(api.Logger).Log(
+			"status", "success",
+			"message", "updateDashboards - Added analytics to "+dashboard.Title,
+			"error", err,
+		)
+	}
+}
+
+func (api *Client) GetDashboard(uid string) *Dashboard {
+	res, err := api.Get("/api/dashboards/uid/" + uid)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "GetDashboard - api.Get failed",
+			"error", err,
+		)
+
+		return nil
+	}
+
+	var dashboardData map[string]interface{}
+	err = json.Unmarshal(res, &dashboardData)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "GetDashboard - Failed to parse dashboardData response",
+			"error", err,
+		)
+
+		return nil
+	}
+
+	return &Dashboard{
+		Uid:  uid,
+		Data: dashboardData,
+	}
+}
+
+func checkAnalyticsPanelExistence(panels []interface{}, largestPanelId int, hasAnalyticsPanel bool) (int, bool) {
+	for _, panel := range panels {
+		panelMap, ok := panel.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Go reports id as float, instead of int
+		panelId := panelMap["id"].(float64)
+		panelIdAsInt := int(panelId)
+		if largestPanelId < panelIdAsInt {
+			largestPanelId = panelIdAsInt
+		}
+
+		if isAnalyticsPanel(panelMap) {
+			hasAnalyticsPanel = true
+
+			break
+		}
+	}
+	return largestPanelId, hasAnalyticsPanel
+}
+
 func getTypedDashboardData(rawDashboardData *Dashboard) map[string]interface{} {
 	dashboard, ok := rawDashboardData.Data["dashboard"]
 	var emptyDashboardData map[string]interface{}
@@ -72,82 +236,7 @@ func isAnalyticsPanel(panel map[string]interface{}) bool {
 	return false
 }
 
-func (api *Client) GetDashboard(uid string) *Dashboard {
-	res, err := api.Get("/api/dashboards/uid/" + uid)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "GetDashboard - api.Get failed",
-			"error", err,
-		)
-
-		return nil
-	}
-
-	var dashboardData map[string]interface{}
-	err = json.Unmarshal(res, &dashboardData)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "GetDashboard - Failed to parse dashboardData response",
-			"error", err,
-		)
-
-		return nil
-	}
-
-	return &Dashboard{
-		Uid:  uid,
-		Data: dashboardData,
-	}
-}
-
-func (api *Client) updateDashboards(dashboards []Dashboard) {
-	for _, dashboard := range dashboards {
-		if dashboard.Title == "test dashboard - empty" {
-			dashboard.Data["overwrite"] = true
-			dashboard.Data["message"] = "PRO - Auto-add analytics panel"
-
-			payload, err := json.Marshal(dashboard.Data)
-			if err != nil {
-				return
-			}
-
-			res, err := api.Post("/api/dashboards/db", payload)
-			if err != nil {
-				level.Info(api.Logger).Log(
-					"status", "error",
-					"message", "updateDashboards - Failed to update dashboard",
-					"error", err,
-				)
-
-				return
-			}
-
-			var responseAsStruct DashboardUpdateResponse
-			err = json.Unmarshal(res, &responseAsStruct)
-			if err != nil {
-				level.Info(api.Logger).Log(
-					"status", "error",
-					"message", "updateDashboards - Failed to parse update response",
-					"error", err,
-				)
-
-				return
-			}
-
-			if responseAsStruct.Status == "success" {
-				level.Info(api.Logger).Log(
-					"status", "success",
-					"message", "Added analytics to "+dashboard.Title,
-					"error", err,
-				)
-			}
-		}
-	}
-}
-
-func (api *Client) getAnalyticsPanelData(panelId int) map[string]interface{} {
+func createAnalyticsPanelData(panelId int, analyticsUrl string) map[string]interface{} {
 	return map[string]interface{}{
 		"id":    panelId,
 		"title": "Analytics",
@@ -167,78 +256,8 @@ func (api *Client) getAnalyticsPanelData(panelId int) map[string]interface{} {
 				"postEnd":           false,
 				"postHeartbeat":     false,
 				"postStart":         true,
-				"server":            api.AnalyticsUrl + "/write",
+				"server":            analyticsUrl + "/write",
 			},
 		},
 	}
-}
-
-func (api *Client) AddAnalyticsToDashboards() {
-	res, err := api.Get("/api/search")
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "AddAnalyticsToDashboards - Failed to get dashboard data - /api/search",
-			"error", err,
-		)
-
-		return
-	}
-
-	var response []DashboardsResponse
-	err = json.Unmarshal(res, &response)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "AddAnalyticsToDashboards - Failed to parse JSON response",
-			"error", err,
-		)
-
-		return
-	}
-
-	var dashboardsToUpdate []Dashboard
-	for _, dashboardEntry := range response {
-		hasAnalyticsPanel := false
-		rawDashboardData := api.GetDashboard(dashboardEntry.Uid)
-		dashboardData := getTypedDashboardData(rawDashboardData)
-		panels := getTypedPanelsData(dashboardData)
-
-		largestPanelId := 0
-		for _, panel := range panels {
-			panelMap, ok := panel.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			// Go reports id as float, instead of int
-			panelId := panelMap["id"].(float64)
-			panelIdAsInt := int(panelId)
-			if largestPanelId < panelIdAsInt {
-				largestPanelId = panelIdAsInt
-			}
-
-			if isAnalyticsPanel(panelMap) {
-				hasAnalyticsPanel = true
-
-				break
-			}
-		}
-
-		title, ok := dashboardData["title"]
-		if !hasAnalyticsPanel && ok {
-			newAnalyticsPanel := api.getAnalyticsPanelData(largestPanelId + 1)
-			panels = append([]interface{}{newAnalyticsPanel}, panels...)
-			dashboardData["panels"] = panels
-			rawDashboardData.Data["dashboard"] = dashboardData
-
-			dashboardsToUpdate = append(dashboardsToUpdate, Dashboard{
-				Uid:   dashboardEntry.Uid,
-				Data:  rawDashboardData.Data,
-				Title: title.(string),
-			})
-		}
-	}
-
-	api.updateDashboards(dashboardsToUpdate)
 }

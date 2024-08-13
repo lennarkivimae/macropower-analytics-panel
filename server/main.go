@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/MacroPower/macropower-analytics-panel/server/worker"
 	"net/http"
 	"os"
 	"time"
@@ -8,7 +9,6 @@ import (
 	"github.com/MacroPower/macropower-analytics-panel/server/cacher"
 	"github.com/MacroPower/macropower-analytics-panel/server/collector"
 	"github.com/MacroPower/macropower-analytics-panel/server/payload"
-	"github.com/MacroPower/macropower-analytics-panel/server/worker"
 	"github.com/alecthomas/kong"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -29,6 +29,8 @@ var (
 		DisableVariableLog   bool          `help:"Disables logging variables to the console." env:"DISABLE_VARIABLE_LOG"`
 		DashboardUpdateToken string        `help:"Grafana token for updating dashboards." env:"DASHBOARD_UPDATE_TOKEN"`
 		GrafanaUrl           string        `help:"Grafana base URL, which is separate from analytics." env:"GRAFANA_URL"`
+		Timeout              time.Duration `help:"Timeout for auto analytic adder interval" env:"TIMEOUT"`
+		DashboardFilter      *string       `help:"Update only single dashboard matching this name, useful to test analytics adder" env:"DASHBOARD_FILTER"`
 	}
 )
 
@@ -76,20 +78,20 @@ func main() {
 	prometheus.MustRegister(exporter, metricExporter)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	go func() {
-		err := http.ListenAndServe(cli.HTTPAddress, mux)
-		ctx.FatalIfErrorf(err)
-	}()
-
 	workerClient := worker.Client{
 		GrafanaUrl:   cli.GrafanaUrl,
 		Token:        cli.DashboardUpdateToken,
 		AnalyticsUrl: cli.HTTPAddress,
 		Logger:       logger,
+		Filter:       cli.DashboardFilter,
 	}
 
+	mux.HandleFunc("/work", func(w http.ResponseWriter, r *http.Request) {
+		workerClient.AddAnalyticsToDashboards()
+	})
+
 	// Run once per 24 hours
-	ticker := time.NewTicker(24 * time.Hour)
+	ticker := time.NewTicker(cli.Timeout * time.Hour)
 	defer ticker.Stop()
 
 	go func() {
@@ -98,6 +100,6 @@ func main() {
 		}
 	}()
 
-	// Prevent the main function from exiting
-	select {}
+	err := http.ListenAndServe(cli.HTTPAddress, mux)
+	ctx.FatalIfErrorf(err)
 }
