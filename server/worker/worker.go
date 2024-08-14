@@ -3,6 +3,7 @@ package worker
 import (
 	"encoding/json"
 	"github.com/go-kit/kit/log/level"
+	"unicode/utf8"
 )
 
 type Dashboard struct {
@@ -82,21 +83,19 @@ func (api *Client) AddAnalyticsToDashboards() {
 }
 
 func (api *Client) updateDashboards(dashboards []Dashboard) {
-	var filteredDashboardName string
 	hasFilter := false
 
-	if api.Filter != nil {
-		filteredDashboardName = *api.Filter
+	if utf8.RuneCountInString(api.Filter) > 0 {
 		hasFilter = true
 	}
 
 	for _, dashboard := range dashboards {
-		api.updateDashboard(dashboard, hasFilter, filteredDashboardName)
+		api.updateDashboard(dashboard, hasFilter)
 	}
 }
 
-func (api *Client) updateDashboard(dashboard Dashboard, hasFilter bool, filteredDashboardName string) {
-	if hasFilter && dashboard.Title != filteredDashboardName {
+func (api *Client) updateDashboard(dashboard Dashboard, hasFilter bool) {
+	if hasFilter && dashboard.Title != api.Filter {
 		return
 	}
 

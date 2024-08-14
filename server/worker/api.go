@@ -14,7 +14,7 @@ type Client struct {
 	GrafanaUrl   string
 	Token        string
 	Logger       log.Logger
-	Filter       *string
+	Filter       string
 }
 
 func (api *Client) prepare(method string, endpoint string, payload []byte) (*http.Request, error) {

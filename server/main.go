@@ -1,20 +1,20 @@
 package main
 
 import (
-	"github.com/MacroPower/macropower-analytics-panel/server/worker"
-	"net/http"
-	"os"
-	"time"
-
 	"github.com/MacroPower/macropower-analytics-panel/server/cacher"
 	"github.com/MacroPower/macropower-analytics-panel/server/collector"
 	"github.com/MacroPower/macropower-analytics-panel/server/payload"
+	"github.com/MacroPower/macropower-analytics-panel/server/worker"
 	"github.com/alecthomas/kong"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 )
 
 var (
@@ -29,8 +29,8 @@ var (
 		DisableVariableLog   bool          `help:"Disables logging variables to the console." env:"DISABLE_VARIABLE_LOG"`
 		DashboardUpdateToken string        `help:"Grafana token for updating dashboards." env:"DASHBOARD_UPDATE_TOKEN"`
 		GrafanaUrl           string        `help:"Grafana base URL, which is separate from analytics." env:"GRAFANA_URL"`
-		Timeout              time.Duration `help:"Timeout for auto analytic adder interval" env:"TIMEOUT"`
-		DashboardFilter      *string       `help:"Update only single dashboard matching this name, useful to test analytics adder" env:"DASHBOARD_FILTER"`
+		Timeout              string        `help:"Timeout for auto analytic adder interval" env:"TIMEOUT" default:"24" `
+		DashboardFilter      string        `help:"Update only single dashboard matching this name, useful to test analytics adder" env:"DASHBOARD_FILTER"`
 	}
 )
 
@@ -90,7 +90,17 @@ func main() {
 		workerClient.AddAnalyticsToDashboards()
 	})
 
-	ticker := time.NewTicker(cli.Timeout * time.Hour)
+	timeout, err := strconv.Atoi(cli.Timeout)
+	if err != nil {
+		level.Error(logger).Log(
+			"msg", "Failed to parse timeout",
+			"version", version.Version,
+			"branch", version.Branch,
+			"revision", version.Revision,
+		)
+	}
+
+	ticker := time.NewTicker(time.Duration(timeout) * time.Hour)
 	defer ticker.Stop()
 
 	go func() {
@@ -99,6 +109,6 @@ func main() {
 		}
 	}()
 
-	err := http.ListenAndServe(cli.HTTPAddress, mux)
+	err = http.ListenAndServe(cli.HTTPAddress, mux)
 	ctx.FatalIfErrorf(err)
 }
