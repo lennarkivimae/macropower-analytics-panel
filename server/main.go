@@ -90,7 +90,6 @@ func main() {
 		workerClient.AddAnalyticsToDashboards()
 	})
 
-	// Run once per 24 hours
 	ticker := time.NewTicker(cli.Timeout * time.Hour)
 	defer ticker.Stop()
 
