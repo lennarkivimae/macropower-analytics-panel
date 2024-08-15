@@ -47,7 +47,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func startProcessor(cache *cacher.Cacher, c <-chan Payload, sessionLog bool, variableLog bool, raw bool, logger log.Logger) {
 	for p := range c {
 		if p.Dashboard.UID != "new" {
-			processPayload(cache, p, logger)
+			ProcessPayload(cache, p, logger)
 		}
 		if sessionLog {
 			LogPayload(p, variableLog, logger, raw)
@@ -56,7 +56,7 @@ func startProcessor(cache *cacher.Cacher, c <-chan Payload, sessionLog bool, var
 }
 
 // processPayload is a receiver for Payloads.
-func processPayload(cache *cacher.Cacher, p Payload, logger log.Logger) {
+func ProcessPayload(cache *cacher.Cacher, p Payload, logger log.Logger) {
 	switch p.Type {
 	case "start":
 		addStart(cache, p)
