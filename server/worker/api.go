@@ -2,8 +2,10 @@ package worker
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"io"
 	"net/http"
 	"strconv"
@@ -17,19 +19,60 @@ type Client struct {
 	Filter       string
 }
 
-func (api *Client) prepare(method string, endpoint string, payload []byte) (*http.Request, error) {
-	bearer := "Bearer " + api.Token
-
-	req, err := http.NewRequest(method, api.GrafanaUrl+endpoint, bytes.NewBuffer(payload))
+func (api *Client) GetDashboards() ([]DashboardsResponse, bool) {
+	res, err := api.Get("/api/search")
 	if err != nil {
-		return nil, errors.New("Failed to create new HTTP Request")
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "GetDashboards - Failed to get dashboards data",
+			"error", err,
+		)
+
+		return nil, true
 	}
 
-	req.Header.Add("Authorization", bearer)
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Accept", "application/json")
+	var response []DashboardsResponse
+	err = json.Unmarshal(res, &response)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "GetDashboards - Failed to parse JSON response",
+			"error", err,
+		)
 
-	return req, nil
+		return nil, true
+	}
+	return response, false
+}
+
+func (api *Client) GetDashboard(uid string) *Dashboard {
+	res, err := api.Get("/api/dashboards/uid/" + uid)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "GetDashboard - api.Get failed",
+			"error", err,
+		)
+
+		return nil
+	}
+
+	var dashboardData map[string]interface{}
+	err = json.Unmarshal(res, &dashboardData)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "GetDashboard - Failed to parse dashboardData response",
+			"error", err,
+		)
+
+		return nil
+	}
+
+	return &Dashboard{
+		Uid:  uid,
+		Data: dashboardData,
+	}
 }
 
 func (api *Client) Get(endpoint string) ([]byte, error) {
@@ -80,4 +123,19 @@ func (api *Client) Post(endpoint string, payload []byte) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func (api *Client) prepare(method string, endpoint string, payload []byte) (*http.Request, error) {
+	bearer := "Bearer " + api.Token
+
+	req, err := http.NewRequest(method, api.GrafanaUrl+endpoint, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, errors.New("Failed to create new HTTP Request")
+	}
+
+	req.Header.Add("Authorization", bearer)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
+
+	return req, nil
 }

@@ -13,7 +13,8 @@ type Dashboard struct {
 }
 
 type DashboardsResponse struct {
-	Uid string `json:"uid"`
+	Uid   string `json:"uid"`
+	Title string `json:"title"`
 }
 
 type DashboardResponse struct {
@@ -31,26 +32,8 @@ type DashboardUpdateResponse struct {
 }
 
 func (api *Client) AddAnalyticsToDashboards() {
-	res, err := api.Get("/api/search")
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "AddAnalyticsToDashboards - Failed to get dashboard data - /api/search",
-			"error", err,
-		)
-
-		return
-	}
-
-	var response []DashboardsResponse
-	err = json.Unmarshal(res, &response)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "AddAnalyticsToDashboards - Failed to parse JSON response",
-			"error", err,
-		)
-
+	response, hasErrored := api.GetDashboards()
+	if hasErrored {
 		return
 	}
 
@@ -136,36 +119,6 @@ func (api *Client) updateDashboard(dashboard Dashboard, hasFilter bool) {
 			"message", "updateDashboards - Added analytics to "+dashboard.Title,
 			"error", err,
 		)
-	}
-}
-
-func (api *Client) GetDashboard(uid string) *Dashboard {
-	res, err := api.Get("/api/dashboards/uid/" + uid)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "GetDashboard - api.Get failed",
-			"error", err,
-		)
-
-		return nil
-	}
-
-	var dashboardData map[string]interface{}
-	err = json.Unmarshal(res, &dashboardData)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "GetDashboard - Failed to parse dashboardData response",
-			"error", err,
-		)
-
-		return nil
-	}
-
-	return &Dashboard{
-		Uid:  uid,
-		Data: dashboardData,
 	}
 }
 
