@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/MacroPower/macropower-analytics-panel/server/cacher"
 	"github.com/MacroPower/macropower-analytics-panel/server/collector"
+	"github.com/MacroPower/macropower-analytics-panel/server/initializer"
 	"github.com/MacroPower/macropower-analytics-panel/server/payload"
 	"github.com/MacroPower/macropower-analytics-panel/server/worker"
 	"github.com/alecthomas/kong"
@@ -89,6 +90,8 @@ func main() {
 	mux.HandleFunc("/work", func(w http.ResponseWriter, r *http.Request) {
 		workerClient.AddAnalyticsToDashboards()
 	})
+
+	initializer.InitializeMetricsForDashboards(workerClient, logger, cache)
 
 	timeout, err := strconv.Atoi(cli.Timeout)
 	if err != nil {
