@@ -86,7 +86,7 @@ func (api *Client) prepareRequest(method string, endpoint string) (*http.Request
 }
 
 func setContentType(req *http.Request, contentType string) {
-	req.Header.Add("Content-Type", contentTypeJson)
+	req.Header.Add("Content-Type", contentType)
 }
 
 func addBodyToRequest(req *http.Request, payload []byte) {
