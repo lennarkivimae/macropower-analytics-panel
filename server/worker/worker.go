@@ -2,6 +2,7 @@ package worker
 
 import (
 	"encoding/json"
+	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"unicode/utf8"
 )
@@ -45,7 +46,7 @@ func (api *Client) AddAnalyticsToDashboards() {
 		panels := getTypedPanelsData(dashboardData)
 
 		largestPanelId := 0
-		largestPanelId, hasAnalyticsPanel = checkAnalyticsPanelExistence(panels, largestPanelId, hasAnalyticsPanel)
+		largestPanelId, hasAnalyticsPanel = checkAnalyticsPanelExistence(panels, largestPanelId, hasAnalyticsPanel, api.Logger)
 
 		title, ok := dashboardData["title"]
 		if !hasAnalyticsPanel && ok {
@@ -122,10 +123,45 @@ func (api *Client) updateDashboard(dashboard Dashboard, hasFilter bool) {
 	}
 }
 
-func checkAnalyticsPanelExistence(panels []interface{}, largestPanelId int, hasAnalyticsPanel bool) (int, bool) {
+func (api *Client) GetDashboard(uid string) *Dashboard {
+	res, err := api.Get("/api/dashboards/uid/" + uid)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "GetDashboard - api.Get failed",
+			"error", err,
+		)
+
+		return nil
+	}
+
+	var dashboardData map[string]interface{}
+	err = json.Unmarshal(res, &dashboardData)
+	if err != nil {
+		level.Info(api.Logger).Log(
+			"status", "error",
+			"message", "GetDashboard - Failed to parse dashboardData response",
+			"error", err,
+		)
+
+		return nil
+	}
+
+	return &Dashboard{
+		Uid:  uid,
+		Data: dashboardData,
+	}
+}
+
+func checkAnalyticsPanelExistence(panels []interface{}, largestPanelId int, hasAnalyticsPanel bool, logger log.Logger) (int, bool) {
 	for _, panel := range panels {
 		panelMap, ok := panel.(map[string]interface{})
 		if !ok {
+			level.Info(logger).Log(
+				"status", "error",
+				"message", "checkAnalyticsPanelExistence - Failed to type cast panel data",
+			)
+
 			continue
 		}
 
@@ -181,11 +217,8 @@ func getTypedPanelsData(dashboardData map[string]interface{}) []interface{} {
 
 func isAnalyticsPanel(panel map[string]interface{}) bool {
 	panelType, ok := panel["type"]
-	if ok {
-		return panelType == "macropower-analytics-panel"
-	}
 
-	return false
+	return ok && panelType == "macropower-analytics-panel"
 }
 
 func createAnalyticsPanelData(panelId int, analyticsUrl string) map[string]interface{} {
