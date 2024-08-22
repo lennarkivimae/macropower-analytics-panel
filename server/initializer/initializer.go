@@ -23,7 +23,6 @@ func InitializeMetricsForDashboards(api worker.Client, logger log.Logger, cache 
 }
 
 func createDashboardPayload(dashboardUid string, dashboardName string, grafanaUrl string) payload.Payload {
-	id := uuid.New()
 	currentTime := int(time.Now().Unix())
 
 	options := payload.OptionsInfo{
@@ -75,7 +74,7 @@ func createDashboardPayload(dashboardUid string, dashboardName string, grafanaUr
 	}
 
 	return payload.Payload{
-		UUID:       id.String(),
+		UUID:       uuid.New().String(),
 		Type:       "heartbeat",
 		HasFocus:   false,
 		Options:    options,
