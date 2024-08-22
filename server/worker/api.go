@@ -3,6 +3,7 @@ package worker
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/go-kit/kit/log"
 	"io"
 	"net/http"
@@ -17,23 +18,10 @@ type Client struct {
 	Filter       string
 }
 
-func (api *Client) prepare(method string, endpoint string, payload []byte) (*http.Request, error) {
-	bearer := "Bearer " + api.Token
-
-	req, err := http.NewRequest(method, api.GrafanaUrl+endpoint, bytes.NewBuffer(payload))
-	if err != nil {
-		return nil, errors.New("Failed to create new HTTP Request")
-	}
-
-	req.Header.Add("Authorization", bearer)
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Accept", "application/json")
-
-	return req, nil
-}
+const contentTypeJson = "application/json"
 
 func (api *Client) Get(endpoint string) ([]byte, error) {
-	req, err := api.prepare("GET", endpoint, nil)
+	req, err := api.prepareRequest("GET", endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +46,13 @@ func (api *Client) Get(endpoint string) ([]byte, error) {
 }
 
 func (api *Client) Post(endpoint string, payload []byte) ([]byte, error) {
-	req, err := api.prepare("POST", endpoint, payload)
+	req, err := api.prepareRequest("POST", endpoint)
 	if err != nil {
 		return nil, err
 	}
+
+	setContentType(req, contentTypeJson)
+	addBodyToRequest(req, payload)
 
 	client := &http.Client{}
 	res, err := client.Do(req)
@@ -80,4 +71,25 @@ func (api *Client) Post(endpoint string, payload []byte) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func (api *Client) prepareRequest(method string, endpoint string) (*http.Request, error) {
+	req, err := http.NewRequest(method, api.GrafanaUrl+endpoint, nil)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Failed to create new HTTP Request\nMethod: %s\nEndpoint: %s", method, endpoint))
+	}
+
+	req.Header.Add("Authorization", "Bearer "+api.Token)
+	req.Header.Add("Accept", contentTypeJson)
+
+	return req, nil
+}
+
+func setContentType(req *http.Request, contentType string) {
+	req.Header.Add("Content-Type", contentTypeJson)
+}
+
+func addBodyToRequest(req *http.Request, payload []byte) {
+	req.Body = io.NopCloser(bytes.NewBuffer(payload))
+	req.ContentLength = int64(len(payload))
 }
