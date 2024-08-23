@@ -72,7 +72,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	handler := payload.NewHandler(cache, 10, !cli.DisableSessionLog, !cli.DisableVariableLog, cli.LogRaw, logger)
-	mux.Handle("/write", handler)
+	mux.Handle("/patch-dashboards", handler)
 
 	exporter := version.NewCollector("grafana_analytics")
 	metricExporter := collector.NewExporter(cache, cli.SessionTimeout, !cli.DisableUserMetrics, logger)
