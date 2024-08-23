@@ -72,7 +72,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	handler := payload.NewHandler(cache, 10, !cli.DisableSessionLog, !cli.DisableVariableLog, cli.LogRaw, logger)
-	mux.Handle("/patch-dashboards", handler)
+	mux.Handle("/write", handler)
 
 	exporter := version.NewCollector("grafana_analytics")
 	metricExporter := collector.NewExporter(cache, cli.SessionTimeout, !cli.DisableUserMetrics, logger)
@@ -87,7 +87,7 @@ func main() {
 		Filter:       cli.DashboardFilter,
 	}
 
-	mux.HandleFunc("/work", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/patch-dashboards", func(w http.ResponseWriter, r *http.Request) {
 		workerClient.AddAnalyticsToDashboards()
 	})
 
