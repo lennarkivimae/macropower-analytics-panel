@@ -29,7 +29,9 @@ func (api *Client) Get(endpoint string) ([]byte, error) {
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if res.StatusCode != http.StatusOK {
-		return nil, errors.New("Request failed with status: " + strconv.Itoa(res.StatusCode))
+		errorMessage := fmt.Sprintf("Request failed\nEndpoint: %s\nStatus: %s", endpoint, strconv.Itoa(res.StatusCode))
+
+		return nil, errors.New(errorMessage)
 	}
 
 	defer res.Body.Close()
@@ -57,7 +59,9 @@ func (api *Client) Post(endpoint string, payload []byte) ([]byte, error) {
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if res.StatusCode != http.StatusOK {
-		return nil, errors.New("Request failed with status: " + strconv.Itoa(res.StatusCode))
+		errorMessage := fmt.Sprintf("Request failed\nEndpoint: %s\nStatus: %s", endpoint, strconv.Itoa(res.StatusCode))
+
+		return nil, errors.New(errorMessage)
 	}
 	defer res.Body.Close()
 
