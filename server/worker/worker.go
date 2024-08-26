@@ -124,36 +124,6 @@ func (api *Client) updateDashboard(dashboard Dashboard) {
 	}
 }
 
-func (api *Client) GetDashboard(uid string) *Dashboard {
-	res, err := api.Get("/api/dashboards/uid/" + uid)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "GetDashboard - api.Get failed",
-			"error", err,
-		)
-
-		return nil
-	}
-
-	var dashboardData map[string]interface{}
-	err = json.Unmarshal(res, &dashboardData)
-	if err != nil {
-		level.Info(api.Logger).Log(
-			"status", "error",
-			"message", "GetDashboard - Failed to parse dashboardData response",
-			"error", err,
-		)
-
-		return nil
-	}
-
-	return &Dashboard{
-		Uid:  uid,
-		Data: dashboardData,
-	}
-}
-
 func checkAnalyticsPanelExistence(panels []interface{}, largestPanelId int, hasAnalyticsPanel bool, logger log.Logger) (int, bool) {
 	for _, panel := range panels {
 		panelMap, ok := panel.(map[string]interface{})
