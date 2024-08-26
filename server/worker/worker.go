@@ -74,15 +74,16 @@ func (api *Client) updateDashboards(dashboards []Dashboard) {
 	}
 
 	for _, dashboard := range dashboards {
-		api.updateDashboard(dashboard, hasFilter)
+		// Update only dashboard what was requested in filter
+		if hasFilter && dashboard.Title != api.Filter {
+			continue
+		}
+
+		api.updateDashboard(dashboard)
 	}
 }
 
-func (api *Client) updateDashboard(dashboard Dashboard, hasFilter bool) {
-	if hasFilter && dashboard.Title != api.Filter {
-		return
-	}
-
+func (api *Client) updateDashboard(dashboard Dashboard) {
 	dashboard.Data["overwrite"] = true
 	dashboard.Data["message"] = "macropower-analytics-panel - Auto-add analytics panel"
 
