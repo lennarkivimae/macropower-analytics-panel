@@ -7,76 +7,96 @@ import (
 	"github.com/MacroPower/macropower-analytics-panel/server/cacher"
 )
 
+const ANALYTICS_USER = "grafana-analytics"
+
 // Payload is the body expected on /write.
 type Payload struct {
-	UUID     string `json:"uuid"`
-	Type     string `json:"type"`
-	HasFocus bool   `json:"hasFocus"`
-	Options  struct {
-		PostStart         bool `json:"postStart"`
-		PostEnd           bool `json:"postEnd"`
-		PostHeartbeat     bool `json:"postHeartbeat"`
-		HeartbeatInterval int  `json:"heartbeatInterval"`
-		HeartbeatAlways   bool `json:"heartbeatAlways"`
-	} `json:"options"`
-	Host struct {
-		Hostname  string `json:"hostname"`
-		Port      string `json:"port"`
-		Protocol  string `json:"protocol"`
-		BuildInfo struct {
-			Version string `json:"version"`
-			Commit  string `json:"commit"`
-			Env     string `json:"env"`
-			Edition string `json:"edition"`
-		} `json:"buildInfo"`
-		LicenseInfo struct {
-			HasLicense bool   `json:"hasLicense"`
-			Expiry     int    `json:"expiry"`
-			StateInfo  string `json:"stateInfo"`
-		} `json:"licenseInfo"`
-	} `json:"host"`
-	Dashboard struct {
-		Name string `json:"name"`
-		UID  string `json:"uid"`
-	} `json:"dashboard"`
-	User struct {
-		IsSignedIn                 bool   `json:"isSignedIn"`
-		ID                         int    `json:"id"`
-		Login                      string `json:"login"`
-		Email                      string `json:"email"`
-		Name                       string `json:"name"`
-		LightTheme                 bool   `json:"lightTheme"`
-		OrgCount                   int    `json:"orgCount"`
-		OrgID                      int    `json:"orgId"`
-		OrgName                    string `json:"orgName"`
-		OrgRole                    string `json:"orgRole"`
-		IsGrafanaAdmin             bool   `json:"isGrafanaAdmin"`
-		Timezone                   string `json:"timezone"`
-		Locale                     string `json:"locale"`
-		HasEditPermissionInFolders bool   `json:"hasEditPermissionInFolders"`
-	} `json:"user"`
-	Variables []struct {
-		Name   string        `json:"name"`
-		Label  string        `json:"label"`
-		Type   string        `json:"type"`
-		Multi  bool          `json:"multi"`
-		Values []interface{} `json:"values"`
-	} `json:"variables"`
-	TimeRange struct {
-		From int `json:"from"`
-		To   int `json:"to"`
-		Raw  struct {
-			From string `json:"from"`
-			To   string `json:"to"`
-		} `json:"raw"`
-	} `json:"timeRange"`
-	TimeZone   string `json:"timeZone"`
-	TimeOrigin int    `json:"timeOrigin"`
-	Time       int    `json:"time"`
+	UUID       string          `json:"uuid"`
+	Type       string          `json:"type"`
+	HasFocus   bool            `json:"hasFocus"`
+	Options    OptionsInfo     `json:"options"`
+	Host       HostInfo        `json:"host"`
+	Dashboard  DashboardInfo   `json:"dashboard"`
+	User       UserInfo        `json:"user"`
+	Variables  []VariablesInfo `json:"variables"`
+	TimeRange  TimeRangeInfo   `json:"timeRange"`
+	TimeZone   string          `json:"timeZone"`
+	TimeOrigin int             `json:"timeOrigin"`
+	Time       int             `json:"time"`
 
 	startTime      time.Time
 	heartbeatTimes []time.Time
 	endTime        time.Time
+}
+
+type TimeRangeInfo struct {
+	From int              `json:"from"`
+	To   int              `json:"to"`
+	Raw  TimeRangeRawInfo `json:"raw"`
+}
+
+type TimeRangeRawInfo struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+type VariablesInfo struct {
+	Name   string        `json:"name"`
+	Label  string        `json:"label"`
+	Type   string        `json:"type"`
+	Multi  bool          `json:"multi"`
+	Values []interface{} `json:"values"`
+}
+
+type UserInfo struct {
+	IsSignedIn                 bool   `json:"isSignedIn"`
+	ID                         int    `json:"id"`
+	Login                      string `json:"login"`
+	Email                      string `json:"email"`
+	Name                       string `json:"name"`
+	LightTheme                 bool   `json:"lightTheme"`
+	OrgCount                   int    `json:"orgCount"`
+	OrgID                      int    `json:"orgId"`
+	OrgName                    string `json:"orgName"`
+	OrgRole                    string `json:"orgRole"`
+	IsGrafanaAdmin             bool   `json:"isGrafanaAdmin"`
+	Timezone                   string `json:"timezone"`
+	Locale                     string `json:"locale"`
+	HasEditPermissionInFolders bool   `json:"hasEditPermissionInFolders"`
+}
+
+type DashboardInfo struct {
+	Name string `json:"name"`
+	UID  string `json:"uid"`
+}
+
+type OptionsInfo struct {
+	PostStart         bool `json:"postStart"`
+	PostEnd           bool `json:"postEnd"`
+	PostHeartbeat     bool `json:"postHeartbeat"`
+	HeartbeatInterval int  `json:"heartbeatInterval"`
+	HeartbeatAlways   bool `json:"heartbeatAlways"`
+}
+
+type HostInfo struct {
+	Hostname    string          `json:"hostname"`
+	Port        string          `json:"port"`
+	Protocol    string          `json:"protocol"`
+	BuildInfo   HostBuildInfo   `json:"buildInfo"`
+	LicenseInfo HostLicenseInfo `json:"licenseInfo"`
+}
+
+type HostLicenseInfo struct {
+	HasLicense bool   `json:"hasLicense"`
+	Expiry     int    `json:"expiry"`
+	StateInfo  string `json:"stateInfo"`
+}
+
+type HostBuildInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Env     string `json:"env"`
+	Edition string `json:"edition"`
 }
 
 // addStart sets the payload StartTime and adds it to the cache.

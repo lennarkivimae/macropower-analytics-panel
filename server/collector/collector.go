@@ -168,7 +168,12 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) error {
 		if err != nil {
 			return err
 		}
-		sessionCount.Inc()
+
+		// We want to initialize all dashboard metrics. However, we do not want to increase count for initialized metrics.
+		// Otherwise, we create false metrics. Having all metrics initialized for dashboards is useful to see which dashboards are not in use
+		if p.User.Name != payload.ANALYTICS_USER {
+			sessionCount.Inc()
+		}
 
 		startSet, hbSet, endSet := p.IsTimeSet()
 		if !startSet {
