@@ -34,3 +34,5 @@ server/vendor/
 **/.release/
 **/.tarballs/
 /.idea/
+
+.env

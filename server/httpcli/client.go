@@ -1,4 +1,4 @@
-package worker
+package httpcli
 
 import (
 	"bytes"
@@ -20,14 +20,18 @@ type Client struct {
 
 const contentTypeJson = "application/json"
 
-func (api *Client) Get(endpoint string) ([]byte, error) {
-	req, err := api.prepareRequest("GET", endpoint)
+func (httpClient *Client) Get(endpoint string) ([]byte, error) {
+	req, err := httpClient.prepareRequest("GET", endpoint)
 	if err != nil {
 		return nil, err
 	}
 
 	client := &http.Client{}
 	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
 	if res.StatusCode != http.StatusOK {
 		errorMessage := fmt.Sprintf("Request failed\nEndpoint: %s\nStatus: %s", endpoint, strconv.Itoa(res.StatusCode))
 
@@ -35,9 +39,6 @@ func (api *Client) Get(endpoint string) ([]byte, error) {
 	}
 
 	defer res.Body.Close()
-	if err != nil {
-		return nil, err
-	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -45,10 +46,11 @@ func (api *Client) Get(endpoint string) ([]byte, error) {
 	}
 
 	return body, nil
+
 }
 
-func (api *Client) Post(endpoint string, payload []byte) ([]byte, error) {
-	req, err := api.prepareRequest("POST", endpoint)
+func (httpClient *Client) Post(endpoint string, payload []byte) ([]byte, error) {
+	req, err := httpClient.prepareRequest("POST", endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -75,15 +77,16 @@ func (api *Client) Post(endpoint string, payload []byte) ([]byte, error) {
 	}
 
 	return body, nil
+
 }
 
-func (api *Client) prepareRequest(method string, endpoint string) (*http.Request, error) {
-	req, err := http.NewRequest(method, api.GrafanaUrl+endpoint, nil)
+func (httpClient *Client) prepareRequest(method string, endpoint string) (*http.Request, error) {
+	req, err := http.NewRequest(method, httpClient.GrafanaUrl+endpoint, nil)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Failed to create new HTTP Request\nMethod: %s\nEndpoint: %s", method, endpoint))
 	}
 
-	req.Header.Add("Authorization", "Bearer "+api.Token)
+	req.Header.Add("Authorization", "Bearer "+httpClient.Token)
 	req.Header.Add("Accept", contentTypeJson)
 
 	return req, nil

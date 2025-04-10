@@ -1,20 +1,22 @@
 package main
 
 import (
+	"net/http"
+	"os"
+	"strconv"
+	"time"
+
 	"github.com/MacroPower/macropower-analytics-panel/server/cacher"
 	"github.com/MacroPower/macropower-analytics-panel/server/collector"
+	"github.com/MacroPower/macropower-analytics-panel/server/dashboard"
+	"github.com/MacroPower/macropower-analytics-panel/server/httpcli"
 	"github.com/MacroPower/macropower-analytics-panel/server/payload"
-	"github.com/MacroPower/macropower-analytics-panel/server/worker"
 	"github.com/alecthomas/kong"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
-	"net/http"
-	"os"
-	"strconv"
-	"time"
 )
 
 var (
@@ -55,6 +57,7 @@ func main() {
 		"version", version.Version,
 		"branch", version.Branch,
 		"revision", version.Revision,
+		"HTTPAddress", version.Revision,
 	)
 	level.Info(logger).Log(
 		"msg", "Build context",
@@ -69,7 +72,6 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-
 	handler := payload.NewHandler(cache, 10, !cli.DisableSessionLog, !cli.DisableVariableLog, cli.LogRaw, logger)
 	mux.Handle("/write", handler)
 
@@ -78,7 +80,7 @@ func main() {
 	prometheus.MustRegister(exporter, metricExporter)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	workerClient := worker.Client{
+	httpClient := httpcli.Client{
 		GrafanaUrl:   cli.GrafanaUrl,
 		Token:        cli.DashboardUpdateToken,
 		AnalyticsUrl: cli.HTTPAddress,
@@ -86,29 +88,35 @@ func main() {
 		Filter:       cli.DashboardFilter,
 	}
 
-	mux.HandleFunc("/patch-dashboards", func(w http.ResponseWriter, r *http.Request) {
-		workerClient.AddAnalyticsToDashboards()
-	})
+	if canEnableDashboardPatcher(cli.GrafanaUrl, cli.DashboardUpdateToken) {
+		mux.HandleFunc("/patch-dashboards", func(w http.ResponseWriter, r *http.Request) {
+			dashboard.AddOrUpdateAnalyticsForAll(&httpClient)
+		})
 
-	timeout, err := strconv.Atoi(cli.Timeout)
-	if err != nil {
-		level.Error(logger).Log(
-			"msg", "Failed to parse timeout",
-			"version", version.Version,
-			"branch", version.Branch,
-			"revision", version.Revision,
-		)
+		timeout, err := strconv.Atoi(cli.Timeout)
+		if err != nil {
+			level.Error(logger).Log(
+				"msg", "Failed to parse timeout",
+				"version", version.Version,
+				"branch", version.Branch,
+				"revision", version.Revision,
+			)
+		}
+
+		ticker := time.NewTicker(time.Duration(timeout) * time.Hour)
+		defer ticker.Stop()
+
+		go func() {
+			for range ticker.C {
+				dashboard.AddOrUpdateAnalyticsForAll(&httpClient)
+			}
+		}()
 	}
 
-	ticker := time.NewTicker(time.Duration(timeout) * time.Hour)
-	defer ticker.Stop()
-
-	go func() {
-		for range ticker.C {
-			workerClient.AddAnalyticsToDashboards()
-		}
-	}()
-
-	err = http.ListenAndServe(cli.HTTPAddress, mux)
+	err := http.ListenAndServe(cli.HTTPAddress, mux)
 	ctx.FatalIfErrorf(err)
+}
+
+func canEnableDashboardPatcher(grafanaUrl string, dashboardUpdateToken string) bool {
+	return len(dashboardUpdateToken) > 0 && len(grafanaUrl) > 0
 }
